@@ -10,8 +10,8 @@
 #include <webots/position_sensor.h>
 #include <webots/robot.h>
 
-#define VERBOSE_MOVEMENT 0x1 << 0
-#define VERBOSE_CAMERA_COLOR 0x1 << 1
+#define VERBOSE_MOVEMENT (0x1 << 0)
+#define VERBOSE_CAMERA_COLOR (0x1 << 1)
 
 #define WHEEL_RADIUS 0.02
 #define AXLE_LENGTH 0.052
@@ -99,7 +99,21 @@ int check_for_color_in_point(const unsigned char *image, int width, int height) 
   int b = wb_camera_image_get_blue(image, camera_width, width, height);
   if (verbose & VERBOSE_CAMERA_COLOR) printf("red=%d, green=%d, blue=%d \n", r, g, b);
 
-  if (r <= TARGET_COLOR_R && g <= TARGET_COLOR_G && b <= TARGET_COLOR_B) {
+// (r >= 63 && r <= 69) && (r >= 200 && r <= 210) &&
+// (g >= 58 && g <= 64) && (g >= 178 && g <= 188) &&
+// (b >= 20 && b <= 30) && (b >= 35 && b <= 42)
+
+// g >= 58 && g <= 64
+// g >= 178 && g <= 188
+
+// b >= 20 && b <= 30
+// b >= 35 && b <= 42
+
+  if (
+  (r >= 63 && r <= 69) && (r >= 200 && r <= 210) &&
+  (g >= 58 && g <= 64) && (g >= 178 && g <= 188) &&
+  (b >= 20 && b <= 30) && (b >= 35 && b <= 42)
+  ) {
     if (verbose & VERBOSE_CAMERA_COLOR) printf("FOUND MATCHING COLOR!!!: red=%d, green=%d, blue=%d \n", r, g, b);
     return 1;
   }
@@ -199,18 +213,19 @@ int main(int argc, char *argv[]) {
       sensors_value[i] = wb_distance_sensor_get_value(distance_sensor[i]);
     }
     
-    double avg_distance_front = (sensors_value[0] + sensors_value[7])/2.0;
-    // printf("Distance: %f # %f\n", sensors_value[0], sensors_value[7]);
+    if (verbose & VERBOSE_MOVEMENT) printf("Distance: %f # %f\n", sensors_value[0], sensors_value[7]);
     int blocked_front = is_blocked(sensors_value[7], sensors_value[0]);
     int blocked_back = is_blocked(sensors_value[4], sensors_value[3]);
     int blocked_left = is_blocked(sensors_value[5], sensors_value[6]);
     int blocked_right = is_blocked(sensors_value[1], sensors_value[2]);
 
     check_for_color_in_point(image, center[0], center[1]);
+    halt();
     
     if (blocked_left && !blocked_front) {
         go();
         // wb_robot_step(4*time_step);
+        wb_robot_step(7*time_step);
         continue;
     } else if (blocked_left && blocked_front) {
         // halt();
@@ -227,8 +242,11 @@ int main(int argc, char *argv[]) {
         turn_right();
         wb_robot_step(7*time_step);
         continue;
+    } else if(blocked_back) {
+      halt();
+      go();
+      wb_robot_step(4*time_step);
     } else {
-      printf("BBBBBBB\n");
       go();
       continue;
     }
