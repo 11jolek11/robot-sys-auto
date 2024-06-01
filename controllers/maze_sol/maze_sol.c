@@ -25,7 +25,8 @@
 #define AXLE_LENGTH 0.052
 #define RANGE (1024 / 2)
 
-#define DISTANCE_TRIGGER 100
+#define DISTANCE_TRIGGER 75
+#define IS_BLOCKED(buff, index) (buff[index] <= DISTANCE_TRIGGER)
 
 // #define TARGET_COLOR_R 255
 // #define TARGET_COLOR_G 226
@@ -40,7 +41,7 @@ WbDeviceTag distance_sensor[8], left_motor, right_motor, left_position_sensor, r
 double speed = DEFAULT_SPEED;
 double sensors_value[8];
 
-int verbose = 0x0 + VERBOSE_MOVEMENT;
+int verbose = 0x0;
 // verbose = verbose + VERBOSE_MOVEMENT;
 
 static int g_shape_guard = 0;
@@ -54,11 +55,12 @@ void halt() {
   wb_motor_set_velocity(right_motor, 0.0);
 }
 
-int is_blocked(double left_sensor, double right_sensor) {
-    if ((left_sensor >= DISTANCE_TRIGGER) || (right_sensor >= DISTANCE_TRIGGER)) {
-        return 1;
-    }
-    return 0;
+int is_blocked(double sensor) {
+    // if (sensor >= DISTANCE_TRIGGER) {
+    //     return 1;
+    // }
+    // return 0;
+    return sensor >= DISTANCE_TRIGGER;
 }
 
 void turn_left() {
@@ -214,45 +216,97 @@ int main(int argc, char *argv[]) {
     }
     
     if (verbose & VERBOSE_MOVEMENT) printf("Distance: %f # %f\n", sensors_value[0], sensors_value[7]);
-    int blocked_front = is_blocked(sensors_value[7], sensors_value[0]);
-    int blocked_back = is_blocked(sensors_value[4], sensors_value[3]);
-    int blocked_left = is_blocked(sensors_value[5], sensors_value[6]);
-    int blocked_right = is_blocked(sensors_value[1], sensors_value[2]);
+    
+    // int sensors_status[8] = {0};
+    // for (int i = 0; i <= 7; i++) {
+    //   sensors_status[i] = IS_BLOCKED(sensors_value, i);
+    // }
 
     check_for_color_in_point(image, center[0], center[1]);
     halt();
+
+    // TODO(11jolek11): DONE: case: 1, 2, 5 , 6 blocked
+
+    // TODO(11jolek11): DONE: change: 1 blocked -> 1 blocked, and 2 not blocked
+    // TODO(11jolek11): DONE: change: 6 blocked -> 6 blocked, and 5 not blocked
     
-    if (blocked_left && !blocked_front) {
+    if (is_blocked(sensors_value[5]) && !is_blocked(sensors_value[0]) && !is_blocked(sensors_value[7])) {
+        printf("%d !%d !%d \n", 5, 0, 7);
         go();
         // wb_robot_step(4*time_step);
         wb_robot_step(7*time_step);
         continue;
-    } else if (blocked_left && blocked_front) {
+    } else if (is_blocked(sensors_value[5]) && is_blocked(sensors_value[0]) && is_blocked(sensors_value[7])) {
+        printf("%d %d %d \n", 5, 0, 7);
         // halt();
         turn_right();
-        wb_robot_step(7*time_step);
+        wb_robot_step(3*time_step);
         continue;
-    } else if (!blocked_left && !blocked_front) {
-        // halt();
+    } else if (!is_blocked(sensors_value[5]) && !is_blocked(sensors_value[0]) && !is_blocked(sensors_value[7])) {
+        halt();
+        printf("!%d !%d !%d \n", 5, 0, 7);
         turn_left();
-        wb_robot_step(7*time_step);
+        wb_robot_step(time_step);
+        go();
+        wb_robot_step(16);
         continue;
-    } else if (!blocked_left && blocked_front) {
+    } else if (!is_blocked(sensors_value[5]) && is_blocked(sensors_value[0]) && is_blocked(sensors_value[7])) {
         // halt();
+
+
+        // FIXME(11jolek11): w narożnikach 
+        // \! 5 0 7
+        // 1, 2 
+        // 0, 1, 7, 6 blocked
+
+        printf("!%d %d %d \n", 5, 0, 7);
         turn_right();
-        wb_robot_step(7*time_step);
+        wb_robot_step(3*time_step);
         continue;
-    } else if(blocked_back) {
+    } else if(is_blocked(sensors_value[3]) && is_blocked(sensors_value[4])) {
+      printf("%d %d \n", 3, 4);
       halt();
       go();
       wb_robot_step(4*time_step);
+      continue;
+    } else if(is_blocked(sensors_value[0]) && is_blocked(sensors_value[1]) && is_blocked(sensors_value[7]) && is_blocked(sensors_value[6])) {
+      printf("%d %d %d %d\n", 1, 2, 7, 6);
+      halt();
+      reverse();
+      wb_robot_step(16);
+      halt();
+      turn_right();
+      wb_robot_step(2*time_step);
+      // go();
+      // wb_robot_step(32);
+      continue;
+    } else if(is_blocked(sensors_value[1]) && !is_blocked(sensors_value[1])) {
+      printf("%d %d \n", 1, 2); // hhh
+      halt();
+      reverse();
+      wb_robot_step(16);
+      halt();
+      turn_left();
+      wb_robot_step(2*time_step);
+      continue;
+    } else if(is_blocked(sensors_value[6]) && !is_blocked(sensors_value[5])) {
+      printf("%d %d \n", 5, 6); // hhh
+      halt();
+      reverse();
+      wb_robot_step(16);
+      halt();
+      turn_right();
+      wb_robot_step(2*time_step);
+      continue;
     } else {
+      printf("None \n");
       go();
       continue;
     }
-  }
+    
 
   wb_robot_cleanup();
 
   return 0;
+  }
 }
