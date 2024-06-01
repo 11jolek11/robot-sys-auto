@@ -98,8 +98,6 @@ void reverse() {
   wb_motor_set_velocity(right_motor, (-1)*speed);
 }
 
-
-
 /*
  * This is the main program.
  * The arguments of the main function can be specified by the
