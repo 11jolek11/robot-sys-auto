@@ -146,10 +146,11 @@ int main(int argc, char **argv) {
     camera_time_step = 64;
   } else {  // original e-puck
     printf("e-puck robot\n");
-    time_step = 64;
+    time_step = 32;
     camera_time_step = 1024;
   }
 
+  printf("Running on timestep: %d", time_step);
   /*
    * You should declare here WbDeviceTag variables for storing
    * robot devices like this:
