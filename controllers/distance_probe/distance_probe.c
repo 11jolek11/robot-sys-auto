@@ -29,8 +29,36 @@
 
 #define DEFAULT_SPEED 3.0
 
-WbDeviceTag left_motor, right_motor;
+#define VERBOSE_MOVEMENT (0x1 << 0)
+#define VERBOSE_CAMERA_COLOR (0x1 << 1)
+
+#define WHEEL_RADIUS 0.02
+#define AXLE_LENGTH 0.052
+#define RANGE (1024 / 2)
+#define DEFAULT_SPEED 3.0
+
+#define TIME_STEP_PUCK 256
+#define TIME_STEP_PUCK2 64
+
+#define WHEEL_RADIUS 0.02
+#define AXLE_LENGTH 0.052
+#define RANGE (1024 / 2)
+
+#define DISTANCE_TRIGGER 110
+#define TIME_TO_TURN 256*4 + 32
+#define ACTION_DELAY 256 + 64
+
+#define TARGET_COLOR_R 70
+#define TARGET_COLOR_G 70
+#define TARGET_COLOR_B 30
+
+#define WHEEL_RADIUS 0.02
+#define AXLE_LENGTH 0.052
+
+WbDeviceTag distance_sensor[8], left_motor, right_motor, left_position_sensor, right_position_sensor;
 double speed = DEFAULT_SPEED;
+
+double sensors_value[8];
 
 static int camera_width;
 static int camera_height;
@@ -60,27 +88,14 @@ void format_date_with_sec(char *output){
       timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
 }
 
-
-void get_center_of_camera(int *buffer, int camera_width, int camera_height) {
-  buffer[0] = camera_width/2;
-  printf("Buff %d \n", buffer[0]);
-  buffer[1] = camera_height/2;
+double compute_distance_left_wheel(WbDeviceTag left_position_sensor, WbDeviceTag right_position_sensor) {
+  double l = wb_position_sensor_get_value(left_position_sensor);
+  return l * WHEEL_RADIUS;         // distance covered by left wheel in meter
 }
 
-int get_for_color_in_point(const unsigned char *image, int width, int height, FILE *sink) {
-  int r = wb_camera_image_get_red(image, camera_width, width, height);
-  int g = wb_camera_image_get_green(image, camera_width, width, height);
-  int b = wb_camera_image_get_blue(image, camera_width, width, height);
-  
-  char timestamp[50] = {0};
-  format_date_time(timestamp);
-  
-  fprintf(stdin, "[%s], r=%d, g=%d, b=%d\n", timestamp, r, g, b);
-  if (sink != NULL) { // r g b
-    fprintf(sink, "%s,%d,%d,%d,\n", timestamp, r, g, b);  
-  }
-
-  return 0;
+double compute_distance_right_wheel(WbDeviceTag left_position_sensor, WbDeviceTag right_position_sensor) {
+  double r = wb_position_sensor_get_value(right_position_sensor);
+  return r * WHEEL_RADIUS;         // distance covered by right wheel in meter
 }
 
 void halt() {
@@ -104,19 +119,20 @@ void reverse() {
  * "controllerArgs" field of the Robot node
  */
 int main(int argc, char **argv) {
+  // wb_robot_init();
 
   char curr_date[50] = {0};
   format_date_with_sec(curr_date); 
-  char file_path[100] = "./LOGS_";
+  char file_path[100] = "./DIST_LOGS_";
   strcat(file_path, curr_date);
   strcat(file_path, ".csv");
   printf("%s \n", file_path);
   FILE *logs = fopen(file_path, "w+");
-  fprintf(logs, "time,r,g,b,\n");
+  fprintf(logs, "time,0,1,2,3,4,5,6,7,left_distance,right_distance,\n");
   fclose(logs);
 
   /* necessary to initialize webots stuff */
-  wb_robot_init();
+  // wb_robot_init();
   
   int time_step;
   int camera_time_step;
@@ -130,10 +146,11 @@ int main(int argc, char **argv) {
     camera_time_step = 64;
   } else {  // original e-puck
     printf("e-puck robot\n");
-    time_step = 64;
+    time_step = 32;
     camera_time_step = 1024;
   }
 
+  printf("Running on timestep: %d", time_step);
   /*
    * You should declare here WbDeviceTag variables for storing
    * robot devices like this:
@@ -141,14 +158,19 @@ int main(int argc, char **argv) {
    *  WbDeviceTag my_actuator = wb_robot_get_device("my_actuator");
    */
 
-  WbDeviceTag camera = wb_robot_get_device("camera");
-  wb_camera_enable(camera, camera_time_step);
-  
-  camera_width = wb_camera_get_width(camera);
-  camera_height = wb_camera_get_height(camera);
-  
-  int center[2] = {0};
-  get_center_of_camera(center, camera_width, camera_height);
+  left_position_sensor = wb_robot_get_device("left wheel sensor");
+  right_position_sensor = wb_robot_get_device("right wheel sensor");
+  wb_position_sensor_enable(left_position_sensor, time_step);
+  wb_position_sensor_enable(right_position_sensor, time_step);
+
+  for (int i = 0; i < 8; i++) {
+    char device_name[4];
+
+    /* get distance sensors */
+    sprintf(device_name, "ps%d", i);
+    distance_sensor[i] = wb_robot_get_device(device_name);
+    wb_distance_sensor_enable(distance_sensor[i], time_step);
+  }
   
   left_motor = wb_robot_get_device("left wheel motor");
   right_motor = wb_robot_get_device("right wheel motor");
@@ -161,10 +183,38 @@ int main(int argc, char **argv) {
    * and leave the loop when the simulation is over
    */
   while (wb_robot_step(TIME_STEP) != -1) {
-  
-    const unsigned char *image = wb_camera_get_image(camera);
+    go();
+
+    for (int i = 0; i < 8; i++) {
+      sensors_value[i] = wb_distance_sensor_get_value(distance_sensor[i]);
+    }
+
+    char timestamp[50] = {0};
+    format_date_time(timestamp);
+
     FILE *logs = fopen(file_path, "a");
-    get_for_color_in_point(image, center[0], center[1], logs);
+
+    fprintf(logs, "%s,", timestamp);
+
+    for (int i = 0; i <= 7; i++) {
+      char temp[32] = {0};
+      sprintf(temp, "%f,", sensors_value[i]);
+      fprintf(logs, temp);
+    }
+
+    double real_distance[2] = {0.0};
+
+    real_distance[0] = compute_distance_left_wheel(left_position_sensor, right_position_sensor);
+    real_distance[1] = compute_distance_right_wheel(left_position_sensor, right_position_sensor);
+
+    for (int i = 0; i <= 1; i++) {
+      char temp[32] = {0};
+      sprintf(temp, "%f,", real_distance[i]);
+      fprintf(logs, temp);
+    }
+
+    fprintf(logs, "\n");
+
     fclose(logs);
     go();
     /*

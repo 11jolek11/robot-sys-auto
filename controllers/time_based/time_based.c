@@ -25,16 +25,16 @@
 #define AXLE_LENGTH 0.052
 #define RANGE (1024 / 2)
 
-#define DISTANCE_TRIGGER 75
-#define IS_BLOCKED(buff, index) (buff[index] <= DISTANCE_TRIGGER)
-
-// #define TARGET_COLOR_R 255
-// #define TARGET_COLOR_G 226
-// #define TARGET_COLOR_B 7
+#define DISTANCE_TRIGGER 1000
+#define TIME_TO_TURN 256*4 + 32
+#define ACTION_DELAY 256 + 64
 
 #define TARGET_COLOR_R 70
 #define TARGET_COLOR_G 70
 #define TARGET_COLOR_B 30
+
+#define WHEEL_RADIUS 0.02
+#define AXLE_LENGTH 0.052
 
 WbDeviceTag distance_sensor[8], left_motor, right_motor, left_position_sensor, right_position_sensor;
 
@@ -49,6 +49,35 @@ static int g_shape_guard = 0;
 static int camera_width;
 static int camera_height;
 
+static void compute_odometry(WbDeviceTag left_position_sensor, WbDeviceTag right_position_sensor) {
+  double l = wb_position_sensor_get_value(left_position_sensor);
+  double r = wb_position_sensor_get_value(right_position_sensor);
+  double dl = l * WHEEL_RADIUS;         // distance covered by left wheel in meter
+  double dr = r * WHEEL_RADIUS;         // distance covered by right wheel in meter
+  double da = (dr - dl) / AXLE_LENGTH;  // delta orientation
+  printf("estimated distance covered by left wheel: %g m.\n", dl);
+  printf("estimated distance covered by right wheel: %g m.\n", dr);
+  printf("estimated change of orientation: %g rad.\n", da);
+}
+
+static double old_delta_orientation = 0.0;
+
+double angle_diff(WbDeviceTag left_position_sensor, WbDeviceTag right_position_sensor) {
+  double da = 0.0;
+  double l = wb_position_sensor_get_value(left_position_sensor);
+  double r = wb_position_sensor_get_value(right_position_sensor);
+  double dl = l * WHEEL_RADIUS;         // distance covered by left wheel in meter
+  double dr = r * WHEEL_RADIUS;         // distance covered by right wheel in meter
+  da = (dr - dl) / AXLE_LENGTH;  // delta orientation
+  // printf("estimated distance covered by left wheel: %g m.\n", dl);
+  // printf("estimated distance covered by right wheel: %g m.\n", dr);
+  // printf("estimated orientation: %g rad.\n", da);
+  double delta = da - old_delta_orientation;
+  // printf("estimated change of orientation: %g rad.\n", delta);
+  old_delta_orientation = da;
+  return delta;
+}
+
 void halt() {
   if (verbose & VERBOSE_MOVEMENT) printf("#  HALT \n");
   wb_motor_set_velocity(left_motor, 0.0);
@@ -56,31 +85,70 @@ void halt() {
 }
 
 int is_blocked(double sensor) {
-    // if (sensor >= DISTANCE_TRIGGER) {
-    //     return 1;
-    // }
-    // return 0;
     return sensor >= DISTANCE_TRIGGER;
 }
 
 void turn_left() {
+  halt();
   if (verbose & VERBOSE_MOVEMENT) printf("#  LEFT \n");
   wb_motor_set_velocity(left_motor, -2.0);
   wb_motor_set_velocity(right_motor, 2.0);
+  wb_robot_step(TIME_TO_TURN);
   g_shape_guard--;
+  halt();
 }
 
 void turn_right() {
+  halt();
   if (verbose & VERBOSE_MOVEMENT) printf("#  RIGHT \n");
   wb_motor_set_velocity(left_motor, 2.0);
   wb_motor_set_velocity(right_motor, -2.0);
+  wb_robot_step(TIME_TO_TURN);
   g_shape_guard++;
+  halt();
+}
+
+void turn_left_by_angle(double rad_angle, WbDeviceTag left_position_sensor, WbDeviceTag right_position_sensor) {
+  halt();
+  if (verbose & VERBOSE_MOVEMENT) printf("#  LEFT \n");
+  printf(">> \n");
+  double total_rad = 0.0;
+  while(total_rad <= rad_angle) {
+    printf("> \n");
+    wb_motor_set_velocity(left_motor, -2.0);
+    wb_motor_set_velocity(right_motor, 2.0);
+    wb_robot_step(1);
+    total_rad = total_rad + angle_diff(left_position_sensor, right_position_sensor);
+  };
+  // angle_diff(left_position_sensor, right_position_sensor)
+  printf(">> Total angle change: %g \n", total_rad);
+  g_shape_guard--;
+  halt();
+}
+
+void turn_right_by_angle(double rad_angle, WbDeviceTag left_position_sensor, WbDeviceTag right_position_sensor) {
+  halt();
+  if (verbose & VERBOSE_MOVEMENT) printf("#  LEFT \n");
+  printf(">> \n");
+  rad_angle = -rad_angle;
+  double total_rad = 0.0;
+  while(total_rad > rad_angle) {
+    printf("T - %g\n", total_rad);
+    wb_motor_set_velocity(left_motor, 2.0);
+    wb_motor_set_velocity(right_motor, -2.0);
+    wb_robot_step(1);
+    total_rad = total_rad + angle_diff(left_position_sensor, right_position_sensor);
+  };
+  printf(">> %g \n", angle_diff(left_position_sensor, right_position_sensor));
+  g_shape_guard--;
+  halt();
 }
 
 void go() {
   if (verbose & VERBOSE_MOVEMENT)  printf("#  GO \n");
   wb_motor_set_velocity(left_motor, speed);
   wb_motor_set_velocity(right_motor, speed);
+  wb_robot_step(ACTION_DELAY*5);
 }
 
 void reverse() {
@@ -122,29 +190,6 @@ int check_for_color_in_point(const unsigned char *image, int width, int height) 
 
   return 0;
 }
-// void turn_right() {
-  // printf("#  RIGHT \n");
-  // wb_motor_set_velocity(left_motor, 2.0);
-  // wb_motor_set_velocity(right_motor, -2.0);
-  
-  // for (int i = 0; i <= 5; i++) {
-      // wb_robot_step(2);
-  // }
-  
-  // g_shape_guard++;
-// }
-
-// void turn_left() {
-  // printf("#  LEFT \n");
-  // wb_motor_set_velocity(left_motor, -2.0);
-  // wb_motor_set_velocity(right_motor, 2.0);
-  
-  // for (int i = 0; i <= 5; i++) {
-      // wb_robot_step(2);
-  // }
-  
-  // g_shape_guard--;
-// }
 
 int main(int argc, char *argv[]) {
   /* define variables */
@@ -162,7 +207,7 @@ int main(int argc, char *argv[]) {
     camera_time_step = 64;
   } else {  // original e-puck
     printf("e-puck robot\n");
-    time_step = 64;
+    time_step = 32;
     camera_time_step = 1024;
   }
 
@@ -177,7 +222,7 @@ int main(int argc, char *argv[]) {
   
   printf("Width: %d camera_height: %d Camera center: %dx%d\n", camera_width, camera_height, center[0], center[1]);
 
-  // Nie ma recognition
+  // Nie ma modulu recognition dla kamery
   // printf("Recong: %d \n", wb_camera_has_recognition(camera));
 
   
@@ -206,6 +251,15 @@ int main(int argc, char *argv[]) {
     wb_distance_sensor_enable(distance_sensor[i], time_step);
   }
   printf("Starting...\n");
+  /* compute odometry */
+  angle_diff(left_position_sensor, right_position_sensor);
+  printf("-----------\n");
+
+  /* get a handler to the position sensors and enable them. */
+  left_position_sensor = wb_robot_get_device("left wheel sensor");
+  right_position_sensor = wb_robot_get_device("right wheel sensor");
+  wb_position_sensor_enable(left_position_sensor, time_step);
+  wb_position_sensor_enable(right_position_sensor, time_step);
 
   // main loop
   while (wb_robot_step(time_step) != -1) {
@@ -217,96 +271,59 @@ int main(int argc, char *argv[]) {
     
     if (verbose & VERBOSE_MOVEMENT) printf("Distance: %f # %f\n", sensors_value[0], sensors_value[7]);
     
-    // int sensors_status[8] = {0};
-    // for (int i = 0; i <= 7; i++) {
-    //   sensors_status[i] = IS_BLOCKED(sensors_value, i);
-    // }
+    int sensors_status[8] = {0};
+    for (int i = 0; i <= 7; i++) {
+      sensors_status[i] = is_blocked(sensors_value[i]);
+    }
 
     check_for_color_in_point(image, center[0], center[1]);
     halt();
-
-    // TODO(11jolek11): DONE: case: 1, 2, 5 , 6 blocked
-
-    // TODO(11jolek11): DONE: change: 1 blocked -> 1 blocked, and 2 not blocked
-    // TODO(11jolek11): DONE: change: 6 blocked -> 6 blocked, and 5 not blocked
-    
-    if (is_blocked(sensors_value[5]) && !is_blocked(sensors_value[0]) && !is_blocked(sensors_value[7])) {
-        printf("%d !%d !%d \n", 5, 0, 7);
-        go();
-        // wb_robot_step(4*time_step);
-        wb_robot_step(7*time_step);
-        continue;
-    } else if (is_blocked(sensors_value[5]) && is_blocked(sensors_value[0]) && is_blocked(sensors_value[7])) {
-        printf("%d %d %d \n", 5, 0, 7);
-        // halt();
-        turn_right();
-        wb_robot_step(3*time_step);
-        continue;
-    } else if (!is_blocked(sensors_value[5]) && !is_blocked(sensors_value[0]) && !is_blocked(sensors_value[7])) {
-        halt();
-        printf("!%d !%d !%d \n", 5, 0, 7);
-        turn_left();
-        wb_robot_step(time_step);
-        go();
-        wb_robot_step(16);
-        continue;
-    } else if (!is_blocked(sensors_value[5]) && is_blocked(sensors_value[0]) && is_blocked(sensors_value[7])) {
-        // halt();
-
-
-        // FIXME(11jolek11): w narożnikach 
-        // \! 5 0 7
-        // 1, 2 
-        // 0, 1, 7, 6 blocked
-
-        printf("!%d %d %d \n", 5, 0, 7);
-        turn_right();
-        wb_robot_step(3*time_step);
-        continue;
-    } else if(is_blocked(sensors_value[3]) && is_blocked(sensors_value[4])) {
-      printf("%d %d \n", 3, 4);
+    wb_robot_step(TIME_TO_TURN);
+    if (!sensors_status[5] && !(sensors_status[0] && sensors_status[7])) {
+      printf("1\n");
+      halt();
+      // turn_left();
+      turn_left_by_angle(1.5708, left_position_sensor, right_position_sensor);
       halt();
       go();
-      wb_robot_step(4*time_step);
+      wb_robot_step(ACTION_DELAY);
+      /* compute odometry */
+      angle_diff(left_position_sensor, right_position_sensor);
       continue;
-    } else if(is_blocked(sensors_value[0]) && is_blocked(sensors_value[1]) && is_blocked(sensors_value[7]) && is_blocked(sensors_value[6])) {
-      printf("%d %d %d %d\n", 1, 2, 7, 6);
+    } else if (sensors_status[5] && (!sensors_status[0] && !sensors_status[7])) {
+      printf("2\n");
       halt();
-      reverse();
-      wb_robot_step(16);
-      halt();
-      turn_right();
-      wb_robot_step(2*time_step);
-      // go();
-      // wb_robot_step(32);
-      continue;
-    } else if(is_blocked(sensors_value[1]) && !is_blocked(sensors_value[1])) {
-      printf("%d %d \n", 1, 2); // hhh
-      halt();
-      reverse();
-      wb_robot_step(16);
-      halt();
-      turn_left();
-      wb_robot_step(2*time_step);
-      continue;
-    } else if(is_blocked(sensors_value[6]) && !is_blocked(sensors_value[5])) {
-      printf("%d %d \n", 5, 6); // hhh
-      halt();
-      reverse();
-      wb_robot_step(16);
-      halt();
-      turn_right();
-      wb_robot_step(2*time_step);
-      continue;
-    } else {
-      printf("None \n");
       go();
+      wb_robot_step(ACTION_DELAY);
+      halt();
+      continue;
+    } else if (!sensors_status[5] && (sensors_status[0] && sensors_status[7])) {
+      printf("3\n");
+      halt();
+      // turn_left();
+      turn_left_by_angle(1.5708, left_position_sensor, right_position_sensor);
+      halt();
+      go();
+      wb_robot_step(ACTION_DELAY);
+
+      /* compute odometry */
+      angle_diff(left_position_sensor, right_position_sensor);
+      continue;
+    } else if (sensors_status[5] && (sensors_status[0] && sensors_status[7])) {
+      printf("4\n");
+      halt();
+      // turn_right();
+      turn_right_by_angle(1.5708, left_position_sensor, right_position_sensor);
+      halt();
+      go();
+      wb_robot_step(ACTION_DELAY);
+      /* compute odometry */
+      angle_diff(left_position_sensor, right_position_sensor);
       continue;
     }
-    
-
+  }
+  
   wb_robot_cleanup();
 
   return 0;
-  }
 }
