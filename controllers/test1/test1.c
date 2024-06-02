@@ -19,7 +19,7 @@
 // #define LEFT_FRONT_SENSOR 6
 // #define LEFT_SENSOR 7
 
-
+// r18g44b89
 // #define WHEEL_RADIUS 0.02
 // #define AXLE_LENGTH 0.052
 
@@ -95,7 +95,7 @@
 //   old_delta_orientation = da;
 //   return delta;
 // }
-
+//
 // int main(int argc, char **argv) {
 //   char curr_date[50] = {0};
 //   format_date_with_sec(curr_date); 
@@ -315,9 +315,12 @@ int check_for_color_in_point(const unsigned char *image, int width, int height) 
   // ((g >= 230 && g <= 245)) &&
   // ((b >= 0 && b <= 58))
 
-  ((r >= 64 && r <= 66)) &&
-  ((g >= 59 && g <= 61)) &&
-  ((b >= 21 && b <= 27))
+  (((r >= 17 && r <= 19)) &&
+  ((g >= 42 && g <= 45)) &&
+  ((b >= 85 && b <= 91))) || (
+  ((r >= 25 && r <= 36)) &&
+  ((g >= 129 && g <= 132)) &&
+  ((b >= 198 && b <= 201)))
 
   // orange and blue
   // ((r >= 63 && r <= 69) || (r >= 200 && r <= 210)) &&
@@ -331,6 +334,8 @@ int check_for_color_in_point(const unsigned char *image, int width, int height) 
 
   return 0;
 }
+
+//lol
 
 int main(int argc, char **argv) {
   wb_robot_init();
