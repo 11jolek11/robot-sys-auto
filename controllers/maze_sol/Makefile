@@ -35,7 +35,7 @@
 ###
 ### ---- C Sources ----
 ### if your program uses several C source files:
-### C_SOURCES = my_plugin.c my_clever_algo.c my_graphics.c
+C_SOURCES = maze_sol.c
 ###
 ### ---- C++ Sources ----
 ### if your program uses several C++ source files:
@@ -56,12 +56,12 @@
 ###
 ### ---- Webots included libraries ----
 ### if you want to use the Webots C API in your C++ controller program:
-### USE_C_API = true
+USE_C_API = true
 ###
 ### ---- Debug mode ----
 ### if you want to display the gcc command line for compilation and link, as
 ### well as the rm command details used for cleaning:
-### VERBOSE = 1
+VERBOSE = 1
 ###
 ###-----------------------------------------------------------------------------
 

@@ -37,9 +37,9 @@
 // #define TARGET_COLOR_G 226
 // #define TARGET_COLOR_B 7
 
-#define TARGET_COLOR_R 150
-#define TARGET_COLOR_G 50
-#define TARGET_COLOR_B 50
+#define TARGET_COLOR_R 100
+#define TARGET_COLOR_G 100
+#define TARGET_COLOR_B 100
 
 WbDeviceTag distance_sensor[8], left_motor, right_motor, left_position_sensor, right_position_sensor, emitter, receiver;
 
@@ -104,7 +104,7 @@ int check_for_color_in_point(const unsigned char *image, int width, int height) 
   int g = wb_camera_image_get_green(image, camera_width, width, height);
   int b = wb_camera_image_get_blue(image, camera_width, width, height);
   if (verbose & VERBOSE_CAMERA_COLOR) printf("red=%d, green=%d, blue=%d \n", r, g, b);
-  
+
   if (r >= TARGET_COLOR_R && g <= TARGET_COLOR_G && b <= TARGET_COLOR_B) {
     if (verbose & VERBOSE_CAMERA_COLOR) printf("FOUND MATCHING COLOR!!!: red=%d, green=%d, blue=%d \n", r, g, b);
     return 1;
@@ -112,12 +112,6 @@ int check_for_color_in_point(const unsigned char *image, int width, int height) 
 
   return 0;
 }
-
-/*
-int founding_infrared(angle) {
-  wb_emitter_send("infra-red", 0.5, angle);
-}
-*/
 
 enum STATES {
   walking = 0,
@@ -164,10 +158,19 @@ int main(int argc, char *argv[]) {
   wb_emitter_set_channel(emitter, 1);
   wb_emitter_set_range(emitter, 0.1);
   srand(time(0) + (wb_robot_get_name()[6] - '0'));
-  
-  char follow[3] = {'f', wb_robot_get_name()[6], '\0'};  
-  char walk[3] = {'w', wb_robot_get_name()[6], '\0'};
-  
+  //int sent = rand();
+  char sent[5];
+  sent[0] = 111;
+  sent[1] = (rand()%10) + '0';
+  sent[2] = (rand()%10) + '0';
+  sent[3] = (rand()%10) + '0';
+  sent[4] = (rand()%10) + '\0';
+  int sent_val;
+  int received_val;
+  sent_val = sent[3]-'0';
+  sent_val += (sent[2]-'0')*10;
+  sent_val += (sent[1]-'0')*100;
+
   receiver = wb_robot_get_device("receiver");
   wb_receiver_set_channel(receiver, 1);
   wb_receiver_enable(receiver, 1);
@@ -198,6 +201,7 @@ int main(int argc, char *argv[]) {
   }
   printf("Starting...\n");
 
+  printf("TO SEND: %s\n", sent);
   // main loop
   while (wb_robot_step(time_step) != -1) {
     const unsigned char *image = wb_camera_get_image(camera);
@@ -213,7 +217,7 @@ int main(int argc, char *argv[]) {
     if (complete) {
         turn_right();
         wb_robot_step(time_step);
-        wb_emitter_send(emitter, "WW", 3);
+        //wb_emitter_send(emitter, "WW", 3);
         continue;  
     } else if (check_for_color_in_point(image, center[0], center[1]) && blocked_front) {
       complete = 1;
@@ -226,35 +230,41 @@ int main(int argc, char *argv[]) {
       printf("followed\n");
     } else {
       printf("status: %d\n", status);
-      
+
       if(status == walking) {
         // Handshake here
-        int sent;
+        
         while (true) {
-          sent = rand();
-          wb_emitter_send(emitter, &sent, sizeof(int));
+          wb_emitter_send(emitter, sent, strlen(sent));
           wb_robot_step(time_step);
-          printf("Sent %d\n", sent);
-                  
-          int received = (const int)(size_t)wb_receiver_get_data(receiver);
-          wb_receiver_next_packet(receiver);
-          printf("Received %d\n", received);
+          printf("Sent: %s - %d\n", sent, sent_val);
           
-          if (received == 0) {
+          const char *received = wb_receiver_get_data(receiver);
+          if (received == NULL) {
             break;
-          } else if (sent > received) {
+          }
+          printf("Received: %s -", received);
+          
+          received_val = received[3]-'0';
+          received_val += (received[2]-'0')*10;
+          received_val += (received[1]-'0')*100;
+          printf(" %d\n", received_val);
+          
+          wb_receiver_next_packet(receiver);
+          if (sent_val > received_val) {
             status = followed;
             turn_right();
             wb_robot_step(1000);    
             break;
-          } else if (sent < received) {
+          } else if (sent_val < received_val) {
             status = following;
             halt();
             wb_robot_step(1000);
             break;
           } else {
-            continue;
+            sent[3] = (rand()%10) + '0';
           }
+          break;
         }
       } else if (status == following) {
         printf("Niewiem\n");
