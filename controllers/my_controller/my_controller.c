@@ -16,8 +16,8 @@
 #include <webots/receiver.h>
 
 
-#define VERBOSE_MOVEMENT 0x0 << 0
-#define VERBOSE_CAMERA_COLOR 0x1 << 1
+#define VERBOSE_MOVEMENT (0x1 << 0)
+#define VERBOSE_CAMERA_COLOR (0x1 << 1)
 
 #define WHEEL_RADIUS 0.02
 #define AXLE_LENGTH 0.052
@@ -49,13 +49,16 @@ WbDeviceTag distance_sensor[8], left_motor, right_motor, left_position_sensor, r
 double speed = DEFAULT_SPEED;
 double sensors_value[8];
 
-int verbose = 0x0 + VERBOSE_MOVEMENT;
+int verbose = 0x0 + VERBOSE_CAMERA_COLOR;
 // verbose = verbose + VERBOSE_MOVEMENT;
 
 static int g_shape_guard = 0;
 
 static int camera_width;
 static int camera_height;
+
+double signal_strength = 0.0;
+double *vector_p;
 
 void halt() {
   if (verbose & VERBOSE_MOVEMENT) printf("#  HALT \n");
@@ -174,7 +177,6 @@ int main(int argc, char *argv[]) {
   sent_val += (sent[2]-'0')*10;
   sent_val += (sent[1]-'0')*100;
 
-  // TODO(11jolek11): Is same channel for recv and emitter OK?
   receiver = wb_robot_get_device("receiver");
   wb_receiver_set_channel(receiver, 1);
   wb_receiver_enable(receiver, 1);
@@ -222,6 +224,7 @@ int main(int argc, char *argv[]) {
         turn_right();
         wb_robot_step(time_step);
         //wb_emitter_send(emitter, "WW", 3);
+        printf("Arrived!\n");
         continue;  
     } else if (check_for_color_in_point(image, center[0], center[1]) && blocked_front) {
       complete = 1;
@@ -255,9 +258,10 @@ int main(int argc, char *argv[]) {
       int len = wb_receiver_get_queue_length(receiver);
       printf("LEN %d ON RECV CHN: %d \n", len, wb_receiver_get_channel(receiver));
       if (len > 0) {
-        printf("Signal power: %g  -  ", wb_receiver_get_signal_strength(receiver));
+        signal_strength = wb_receiver_get_signal_strength(receiver);
+        printf("Signal power: %g  -  ", signal_strength);
 
-        double *vector_p = wb_receiver_get_emitter_direction(receiver);
+        vector_p = wb_receiver_get_emitter_direction(receiver);
         printf("Signal vector: %g %g %g \n", vector_p[0], vector_p[1], vector_p[2]);
 
         wb_receiver_next_packet(receiver);
@@ -312,7 +316,7 @@ int main(int argc, char *argv[]) {
         continue;
       }
     }
-    
+    if (status != following) {
     if (blocked_front) {
         turn_right();
         wb_robot_step(time_step);
@@ -334,6 +338,38 @@ int main(int argc, char *argv[]) {
       go();
       wb_robot_step(time_step);
       continue;
+    }
+
+    } else if (signal_strength >= 100.0) {
+        if (vector_p[0] >= 0 && vector_p[1] >= 0) {
+          turn_left();
+          wb_robot_step(0.5*time_step);
+          go();
+          wb_robot_step(0.5*time_step);
+          continue;
+        } else if (vector_p[0] >= 0 && vector_p[1] < 0) {
+          turn_right();
+          wb_robot_step(0.5*time_step);
+          go();
+          wb_robot_step(0.5*time_step);
+          continue;
+        } else if (vector_p[0] < 0 && vector_p[1] >= 0) {
+          turn_left();
+          wb_robot_step(time_step);
+          go();
+          wb_robot_step(0.5*time_step);
+          continue;
+        } else if (vector_p[0] < 0 && vector_p[1] < 0) {
+          turn_right();
+          wb_robot_step(time_step);
+          go();
+          continue;
+        } else {
+          go();
+          wb_robot_step(0.5*time_step);
+          wb_robot_step(time_step);
+        }
+
     }
   }
 
