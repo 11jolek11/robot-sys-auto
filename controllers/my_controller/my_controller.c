@@ -258,7 +258,7 @@ int main(int argc, char *argv[]) {
         printf("Signal power: %g  -  ", wb_receiver_get_signal_strength(receiver));
 
         double *vector_p = wb_receiver_get_emitter_direction(receiver);
-        // printf("Signal vector: %g %g %g \n", vector_p[0], vector_p[1], vector_p[2]);
+        printf("Signal vector: %g %g %g \n", vector_p[0], vector_p[1], vector_p[2]);
 
         wb_receiver_next_packet(receiver);
       }
