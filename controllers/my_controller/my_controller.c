@@ -111,7 +111,16 @@ int check_for_color_in_point(const unsigned char *image, int width, int height) 
   int b = wb_camera_image_get_blue(image, camera_width, width, height);
   if (verbose & VERBOSE_CAMERA_COLOR) printf("red=%d, green=%d, blue=%d \n", r, g, b);
 
-  if (r >= TARGET_COLOR_R && g <= TARGET_COLOR_G && b <= TARGET_COLOR_B) {
+  if (
+    // r >= TARGET_COLOR_R && g <= TARGET_COLOR_G && b <= TARGET_COLOR_B
+    (((r >= 0 && r <= 15)) &&
+    ((g >= 147 && g <= 152)) &&
+    ((b >= 250 && b <= 255))) || (
+    ((r >= 25 && r <= 36)) &&
+    ((g >= 129 && g <= 132)) &&
+    ((b >= 198 && b <= 201)))
+    
+    ) {
     if (verbose & VERBOSE_CAMERA_COLOR) printf("FOUND MATCHING COLOR!!!: red=%d, green=%d, blue=%d \n", r, g, b);
     return 1;
   }
