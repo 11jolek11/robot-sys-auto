@@ -49,9 +49,7 @@ WbDeviceTag distance_sensor[8], left_motor, right_motor, left_position_sensor, r
 double speed = DEFAULT_SPEED;
 double sensors_value[8];
 
-int verbose = 0x0;
-
-// int verbose = 0x0 + VERBOSE_CAMERA_COLOR;
+int verbose = 0x0 + VERBOSE_CAMERA_COLOR;
 // verbose = verbose + VERBOSE_MOVEMENT;
 
 static int g_shape_guard = 0;
@@ -240,13 +238,6 @@ int main(int argc, char *argv[]) {
   printf("TO SEND: %s\n", sent);
   // main loop
   while (wb_robot_step(time_step) != -1) {
-    if (status == walking) {
-        printf(">> walking \n");
-    } else if (status == followed) {
-        printf(">> followed \n");
-    } else {
-      printf(">> following \n");
-    }
     const unsigned char *image = wb_camera_get_image(camera);
     // read sensors values
     for (i = 0; i < 8; i++) {
@@ -255,10 +246,6 @@ int main(int argc, char *argv[]) {
     
     int blocked_front = sensor_blocked(sensors_value[7], DISTANCE_TRIGGER) || sensor_blocked(sensors_value[0], DISTANCE_TRIGGER);
     int blocked_left = sensor_blocked(sensors_value[6], DISTANCE_TRIGGER);
-
-    int blocked_back = sensor_blocked(sensors_value[3], DISTANCE_TRIGGER) || sensor_blocked(sensors_value[4], DISTANCE_TRIGGER);
-    int blocked_right = sensor_blocked(sensors_value[2], DISTANCE_TRIGGER);
-
     int blocked_left_close = sensor_blocked(sensors_value[5], 0.15);
 
     if (complete) {
@@ -292,31 +279,6 @@ int main(int argc, char *argv[]) {
       // wb_emitter_set_channel(emitter, EMITTER_CHANNEL);
       // wb_emitter_set_range(emitter, 0.1);
 
-      int result = 0;
-      for (int i = 0; i <= 7; i++) {
-        result = result + sensor_blocked(sensors_value[i], DISTANCE_TRIGGER);
-      }
-
-      if (result >= 7) {
-          char certs[5];
-          certs[0] = 116;
-          certs[1] = (rand()%10) + '0';
-          certs[2] = (rand()%10) + '0';
-          certs[3] = (rand()%10) + '0';
-          certs[4] = (rand()%10) + '\0';
-
-          wb_emitter_send(emitter, certs, strlen(certs));
-          wb_robot_step(time_step);
-          status = walking; // FIXME(11jolek11): status wydaje się nie zmieniać
-          wb_robot_step(time_step);
-          wb_emitter_set_range(emitter,  0.1);
-          halt();
-          wb_robot_step(time_step);
-          printf("LEADER TRANSFER \n");
-      }
-
-      
-
     } else if (status == following) {
       printf("following\n");
       // wb_receiver_set_channel(receiver, RECV_CHANNEL + 3);
@@ -330,15 +292,6 @@ int main(int argc, char *argv[]) {
 
         vector_p = wb_receiver_get_emitter_direction(receiver);
         printf("Signal vector: %g %g %g \n", vector_p[0], vector_p[1], vector_p[2]);
-
-        char *data = (char*)wb_receiver_get_data(receiver);
-        print("Next channel msg: %s\n", data);
-        if (data[0] == 116) {
-          status = walking;
-          wb_emitter_set_range(emitter, 0.1);
-          halt();
-          wb_robot_step(time_step);
-        }
 
         wb_receiver_next_packet(receiver);
       }
@@ -445,9 +398,7 @@ int main(int argc, char *argv[]) {
           wb_robot_step(0.5*time_step);
           wb_robot_step(time_step);
         }
-    } else if (signal_strength < 100.0 && status == following) {
-      status = walking; // GO walking if u lost contact with leader
-      wb_emitter_set_range(emitter, 0.1);
+
     }
   }
 
