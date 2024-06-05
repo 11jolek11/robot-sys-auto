@@ -33,6 +33,9 @@
 
 #define DISTANCE_TRIGGER 100
 
+#define EMITTER_CHANNEL 3
+#define RECV_CHANNEL 3
+
 // #define TARGET_COLOR_R 255
 // #define TARGET_COLOR_G 226
 // #define TARGET_COLOR_B 7
@@ -171,6 +174,7 @@ int main(int argc, char *argv[]) {
   sent_val += (sent[2]-'0')*10;
   sent_val += (sent[1]-'0')*100;
 
+  // TODO(11jolek11): Is same channel for recv and emitter OK?
   receiver = wb_robot_get_device("receiver");
   wb_receiver_set_channel(receiver, 1);
   wb_receiver_enable(receiver, 1);
@@ -223,11 +227,45 @@ int main(int argc, char *argv[]) {
       complete = 1;
     }
     
-      
-    if (status == following) {
-      printf("following\n");
-    } else if (status == followed) {
+    if (status == followed) {
       printf("followed\n");
+
+      // wb_emitter_set_channel(emitter, EMITTER_CHANNEL+3);
+      wb_emitter_set_range(emitter, 2.6);
+
+      char signal[5];
+      signal[0] = 65;
+      signal[1] = (rand()%10) + '0';
+      signal[2] = (rand()%10) + '0';
+      signal[3] = (rand()%10) + '0';
+      signal[4] = (rand()%10) + '\0';
+
+      wb_emitter_send(emitter, signal, strlen(signal));
+      wb_robot_step(time_step);
+      printf("NEW EMIT \n");
+          
+      // wb_emitter_set_channel(emitter, EMITTER_CHANNEL);
+      // wb_emitter_set_range(emitter, 0.1);
+
+    } else if (status == following) {
+      printf("following\n");
+      // wb_receiver_set_channel(receiver, RECV_CHANNEL + 3);
+      wb_emitter_set_range(emitter, 2.6);
+
+      int len = wb_receiver_get_queue_length(receiver);
+      printf("LEN %d ON RECV CHN: %d \n", len, wb_receiver_get_channel(receiver));
+      if (len > 0) {
+        printf("Signal power: %g  -  ", wb_receiver_get_signal_strength(receiver));
+
+        double *vector_p = wb_receiver_get_emitter_direction(receiver);
+        // printf("Signal vector: %g %g %g \n", vector_p[0], vector_p[1], vector_p[2]);
+
+        wb_receiver_next_packet(receiver);
+      }
+
+      // wb_receiver_set_channel(receiver, RECV_CHANNEL);
+      wb_emitter_set_range(emitter, 0.1);
+
     } else {
       printf("status: %d\n", status);
 
@@ -245,24 +283,26 @@ int main(int argc, char *argv[]) {
           }
           printf("Received: %s -", received);
           
-          received_val = received[3]-'0';
-          received_val += (received[2]-'0')*10;
-          received_val += (received[1]-'0')*100;
-          printf(" %d\n", received_val);
-          
-          wb_receiver_next_packet(receiver);
-          if (sent_val > received_val) {
-            status = followed;
-            turn_right();
-            wb_robot_step(1000);    
-            break;
-          } else if (sent_val < received_val) {
-            status = following;
-            halt();
-            wb_robot_step(1000);
-            break;
-          } else {
-            sent[3] = (rand()%10) + '0';
+          if (received[0] == 111) {
+            received_val = received[3]-'0';
+            received_val += (received[2]-'0')*10;
+            received_val += (received[1]-'0')*100;
+            printf(" %d\n", received_val);
+            
+            wb_receiver_next_packet(receiver);
+            if (sent_val > received_val) {
+              status = followed;
+              turn_right();
+              wb_robot_step(1000);    
+              break;
+            } else if (sent_val < received_val) {
+              status = following;
+              halt();
+              wb_robot_step(1000);
+              break;
+            } else {
+              sent[3] = (rand()%10) + '0';
+            }
           }
           break;
         }
