@@ -281,6 +281,29 @@ int main(int argc, char *argv[]) {
       wb_emitter_send(emitter, signal, strlen(signal));
       wb_robot_step(time_step);
       printf("NEW EMIT \n");
+
+      int result = 0;
+      for (int i = 0; i <= 7; i++) {
+        result = result + sensor_blocked(sensors_value[i], DISTANCE_TRIGGER);
+      }
+
+      if (result >= 6) {
+          char certs[5];
+          certs[0] = 116;
+          certs[1] = (rand()%10) + '0';
+          certs[2] = (rand()%10) + '0';
+          certs[3] = (rand()%10) + '0';
+          certs[4] = (rand()%10) + '\0';
+
+          wb_emitter_send(emitter, certs, strlen(certs));
+          wb_robot_step(time_step);
+          status = following;
+          wb_robot_step(time_step);
+          halt();
+          wb_robot_step(time_step);
+          printf("LEADER TRANSFER \n");
+          continue;
+      }
           
       // wb_emitter_set_channel(emitter, EMITTER_CHANNEL);
       // wb_emitter_set_range(emitter, 0.1);
@@ -299,8 +322,21 @@ int main(int argc, char *argv[]) {
         vector_p = wb_receiver_get_emitter_direction(receiver);
         printf("Signal vector: %g %g %g \n", vector_p[0], vector_p[1], vector_p[2]);
 
+        char *data = (char*)wb_receiver_get_data(receiver);
+        printf("Next channel msg: %s\n", data);
+        if (data[0] == 116) {
+          wb_receiver_next_packet(receiver);
+          status = followed;
+          printf("LEADER TRANSFER -- COMPLETED \n");
+          halt();
+          wb_robot_step(time_step);
+          continue;
+        }
+
         wb_receiver_next_packet(receiver);
       }
+
+      
 
       // wb_receiver_set_channel(receiver, RECV_CHANNEL);
       wb_emitter_set_range(emitter, 0.1);
