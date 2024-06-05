@@ -127,8 +127,8 @@ int check_for_color_in_point(const unsigned char *image, int width, int height) 
     ((g >= 147 && g <= 152)) &&
     ((b >= 250 && b <= 255))) || (
     ((r >= 25 && r <= 36)) &&
-    ((g >= 129 && g <= 132)) &&
-    ((b >= 198 && b <= 201)))
+    ((g >= 125 && g <= 132)) &&
+    ((b >= 195 && b <= 199)))
     
     ) {
     if (verbose & VERBOSE_CAMERA_COLOR) printf("FOUND MATCHING COLOR!!!: red=%d, green=%d, blue=%d \n", r, g, b);
@@ -139,11 +139,17 @@ int check_for_color_in_point(const unsigned char *image, int width, int height) 
 }
 
 int check_for_color_in_points_of_interests(const unsigned char *image) {
+  int count = 0;
   for (int i = 0; i <= 4; i++) {
       if (check_for_color_in_point(image, points_of_interests[i][0], points_of_interests[i][1])) {
-        return 1;
+        count++;
       }
   }
+
+  if (count >= 3) {
+    return 1;
+  }
+
   return 0;
 }
 
