@@ -60,6 +60,16 @@ static int camera_height;
 double signal_strength = 0.0;
 double *vector_p;
 
+// 52 x 39
+int points_of_interests[5][2] = {
+  {13, 13},
+  {13, 26},
+  {39, 13},
+  {39, 26},
+
+  {26, 19}
+};
+
 void halt() {
   if (verbose & VERBOSE_MOVEMENT) printf("#  HALT \n");
   wb_motor_set_velocity(left_motor, 0.0);
@@ -125,6 +135,15 @@ int check_for_color_in_point(const unsigned char *image, int width, int height) 
     return 1;
   }
 
+  return 0;
+}
+
+int check_for_color_in_points_of_interests(const unsigned char *image) {
+  for (int i = 0; i <= 4; i++) {
+      if (check_for_color_in_point(image, points_of_interests[i][0], points_of_interests[i][1])) {
+        return 1;
+      }
+  }
   return 0;
 }
 
@@ -235,7 +254,8 @@ int main(int argc, char *argv[]) {
         //wb_emitter_send(emitter, "WW", 3);
         printf("Arrived!\n");
         continue;  
-    } else if (check_for_color_in_point(image, center[0], center[1]) && blocked_front) {
+    // } else if (check_for_color_in_point(image, center[0], center[1]) && blocked_front) {
+    } else if (check_for_color_in_points_of_interests(image) && blocked_front) {
       complete = 1;
     }
     
