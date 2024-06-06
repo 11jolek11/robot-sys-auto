@@ -61,11 +61,16 @@ double signal_strength = 0.0;
 double *vector_p;
 
 // 52 x 39
-int points_of_interests[5][2] = {
+int points_of_interests[9][2] = {
   {13, 13},
   {13, 26},
   {39, 13},
   {39, 26},
+
+  {51, 38},
+  {1, 1},
+  {51, 1},
+  {1, 38},
 
   {26, 19}
 };
@@ -258,6 +263,16 @@ int main(int argc, char *argv[]) {
         turn_right();
         wb_robot_step(time_step);
         //wb_emitter_send(emitter, "WW", 3);
+        wb_emitter_set_range(emitter, 0.1);
+        char fin[5];
+          fin[0] = 'W';
+          fin[1] = (rand()%10) + '0';
+          fin[2] = (rand()%10) + '0';
+          fin[3] = (rand()%10) + '0';
+          fin[4] = (rand()%10) + '\0';
+
+        wb_emitter_send(emitter, fin, strlen(fin));
+        wb_robot_step(time_step);
         printf("Arrived!\n");
         continue;  
     // } else if (check_for_color_in_point(image, center[0], center[1]) && blocked_front) {
@@ -298,6 +313,7 @@ int main(int argc, char *argv[]) {
           wb_emitter_send(emitter, certs, strlen(certs));
           wb_robot_step(time_step);
           status = following;
+          speed = 6.0;
           wb_robot_step(time_step);
           halt();
           wb_robot_step(time_step);
@@ -327,9 +343,17 @@ int main(int argc, char *argv[]) {
         if (data[0] == 116) {
           wb_receiver_next_packet(receiver);
           status = followed;
+          speed = DEFAULT_SPEED;
           printf("LEADER TRANSFER -- COMPLETED \n");
           halt();
           wb_robot_step(time_step);
+          continue;
+        } else if (data[0] == 'W') {
+          wb_receiver_next_packet(receiver);
+          halt();
+          turn_right();
+          wb_robot_step(time_step);
+          printf("Arrived after!");
           continue;
         }
 
@@ -367,18 +391,28 @@ int main(int argc, char *argv[]) {
             wb_receiver_next_packet(receiver);
             if (sent_val > received_val) {
               status = followed;
+              speed = DEFAULT_SPEED;
               turn_right();
               wb_robot_step(1000);    
               break;
             } else if (sent_val < received_val) {
               status = following;
+              speed = 6.0;
               halt();
               wb_robot_step(1000);
               break;
             } else {
               sent[3] = (rand()%10) + '0';
             }
-          }
+          } else if (received[0] == 'W') {
+              wb_receiver_next_packet(receiver);
+              halt();
+              turn_right();
+              while (true) {
+                wb_robot_step(time_step);
+                printf("Arrived sec!");
+              }
+            }
           break;
         }
       } else if (status == following) {
@@ -402,6 +436,16 @@ int main(int argc, char *argv[]) {
         continue;
     } else if (!blocked_left) {
         turn_left();
+        wb_robot_step(time_step);
+        continue;
+    } else if ((sensor_blocked(sensors_value[7], DISTANCE_TRIGGER)
+     && sensor_blocked(sensors_value[6], DISTANCE_TRIGGER))
+     ||  (sensor_blocked(sensors_value[0], DISTANCE_TRIGGER)
+     && sensor_blocked(sensors_value[1], DISTANCE_TRIGGER))) {
+        halt();
+        reverse();
+        wb_robot_step(32);
+        turn_right();
         wb_robot_step(time_step);
         continue;
     } else {
